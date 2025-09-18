@@ -98,13 +98,17 @@ with col1:
     else:
         y_col = 'value'
 
-    df_plot = df_plot.groupby('date', as_index=False)[y_col].mean()
+    # 연별 평균 계산
+    df_plot['year'] = df_plot['date'].dt.year
+    df_plot_grouped = df_plot.groupby('year', as_index=False)[y_col].mean()
 
+    # 그래프 그리기
     if viz_type=="꺾은선":
-        fig = px.line(df_plot, x='date', y=y_col, labels={'date':'날짜', y_col:'이상값(°C)'})
+        fig = px.line(df_plot_grouped, x='year', y=y_col, labels={'year':'연도', y_col:'기온(°C)'})
     else:
-        fig = px.area(df_plot, x='date', y=y_col, labels={'date':'날짜', y_col:'이상값(°C)'})
+        fig = px.area(df_plot_grouped, x='year', y=y_col, labels={'year':'연도', y_col:'기온(°C)'})
     st.plotly_chart(fig, use_container_width=True)
+
 
 st.download_button("CSV 다운로드", gistemp_df.to_csv(index=False).encode('utf-8'),
                    file_name="gistemp_preprocessed.csv", mime="text/csv")
