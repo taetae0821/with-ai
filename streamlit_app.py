@@ -102,5 +102,4 @@ col1.plotly_chart(fig, use_container_width=True)
 if st.session_state.score >= st.session_state.level * 10:
     st.session_state.level += 1
 
-# 자동 새로고침
-st.experimental_rerun()
+
