@@ -13,11 +13,12 @@ st.title("🌊 Sea Level Rising - TOFU Game")
 if "player_x" not in st.session_state:
     st.session_state.player_x = 5
 if "player_y" not in st.session_state:
-    st.session_state.player_y = 0
+    st.session_state.player_y = 5  # 해수면보다 충분히 높게 시작
 if "score" not in st.session_state:
     st.session_state.score = 0
 if "blocks" not in st.session_state:
-    st.session_state.blocks = []
+    # 시작 발판 확보
+    st.session_state.blocks = [{"x": 5, "y": 0}]
 if "sea_level" not in st.session_state:
     st.session_state.sea_level = 0
 if "speed" not in st.session_state:
@@ -55,7 +56,7 @@ with col2:
     if st.button("점프"):
         # 블록 위에 있으면 점프 가능
         for b in st.session_state.blocks:
-            if b["x"] == st.session_state.player_x and b["y"] == st.session_state.player_y:
+            if b["x"] == st.session_state.player_x and st.session_state.player_y == b["y"]:
                 st.session_state.y_velocity = JUMP_POWER
 
 # -------------------------------
@@ -77,6 +78,7 @@ def game_loop():
         # -------------------------------
         for b in st.session_state.blocks:
             b["y"] -= 1
+        st.session_state.blocks = [b for b in st.session_state.blocks if b["y"] >= 0]
 
         # -------------------------------
         # 캐릭터 점프/중력
@@ -99,14 +101,15 @@ def game_loop():
         # -------------------------------
         # 해수면 상승
         # -------------------------------
-        st.session_state.sea_level += 0.01
+        st.session_state.sea_level += 0.005  # 시작하자마자 끝나지 않도록 조정
         if st.session_state.player_y < st.session_state.sea_level:
             placeholder.empty()
             st.error("💀 Game Over! 해수면에 잠겼습니다.")
+            # 초기화
             st.session_state.player_x = 5
-            st.session_state.player_y = 0
+            st.session_state.player_y = 5
             st.session_state.score = 0
-            st.session_state.blocks = []
+            st.session_state.blocks = [{"x": 5, "y": 0}]
             st.session_state.sea_level = 0
             st.session_state.level = 1
             st.session_state.speed = 0.3
