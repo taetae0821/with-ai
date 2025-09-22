@@ -1,157 +1,106 @@
-import pygame
-import random
-import sys
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import time
+
+st.set_page_config(page_title="Sea Level Rising Game (Streamlit)", layout="wide")
 
 # -------------------------------
-# 초기화
+# 게임 상태 초기화
 # -------------------------------
-pygame.init()
-WIDTH, HEIGHT = 400, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Sea Level Rising - TOFU Game")
+if "player_x" not in st.session_state:
+    st.session_state.player_x = 50
+if "player_y" not in st.session_state:
+    st.session_state.player_y = 0
+if "blocks" not in st.session_state:
+    # 초기 블록 위치 (x, y)
+    st.session_state.blocks = [{"x": 40, "y": 0}]
+if "sea_level" not in st.session_state:
+    st.session_state.sea_level = 100
+if "score" not in st.session_state:
+    st.session_state.score = 0
+if "level" not in st.session_state:
+    st.session_state.level = 1
 
-# -------------------------------
-# 색상
-# -------------------------------
-WHITE = (255, 255, 255)
-BLUE = (50, 150, 255)
-LIGHTBLUE = (150, 200, 255)
-GREEN = (50, 200, 50)
-BLACK = (0, 0, 0)
-
-# -------------------------------
-# 캐릭터 설정
-# -------------------------------
-player_width, player_height = 40, 40
-player_x = WIDTH // 2 - player_width // 2
-player_y = HEIGHT - 100
-player_speed = 5
-y_velocity = 0
-gravity = 0.5
-jump_power = -10
+WIDTH = 100
+HEIGHT = 100
+BLOCK_WIDTH = 20
+BLOCK_HEIGHT = 5
 
 # -------------------------------
-# 블록 설정
+# UI 구성
 # -------------------------------
-blocks = [pygame.Rect(WIDTH//2 - 50, HEIGHT-50, 100, 20)]
-block_speed = 2
-block_width, block_height = 100, 20
+st.title("Sea Level Rising Game (Streamlit)")
 
-# -------------------------------
-# 해수면 설정
-# -------------------------------
-sea_level = HEIGHT - 30
-sea_rise_speed = 0.02  # 초당 상승량
+col1, col2 = st.columns([2,1])
 
-# -------------------------------
-# 점수 / 레벨
-# -------------------------------
-score = 0
-level = 1
+with col2:
+    st.subheader("조작 버튼")
+    left = st.button("⬅️ 좌")
+    right = st.button("➡️ 우")
+    st.write(f"점수: {st.session_state.score}  레벨: {st.session_state.level}")
 
 # -------------------------------
-# 시계
+# 캐릭터 이동
 # -------------------------------
-clock = pygame.time.Clock()
-
-# -------------------------------
-# 폰트
-# -------------------------------
-font = pygame.font.SysFont(None, 30)
+if left:
+    st.session_state.player_x = max(0, st.session_state.player_x - 5)
+if right:
+    st.session_state.player_x = min(WIDTH, st.session_state.player_x + 5)
 
 # -------------------------------
-# 게임 루프
+# 블록과 충돌 및 점수
 # -------------------------------
-running = True
-while running:
-    dt = clock.tick(60) / 1000  # 초 단위
+for block in st.session_state.blocks:
+    if abs(block["x"] - st.session_state.player_x) < 10 and abs(block["y"] - st.session_state.player_y) < 5:
+        st.session_state.score += 1
+        st.session_state.player_y = block["y"] + BLOCK_HEIGHT
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+# -------------------------------
+# 새로운 블록 생성
+# -------------------------------
+if st.session_state.blocks[-1]["y"] > 20:
+    new_x = np.random.randint(0, WIDTH-BLOCK_WIDTH)
+    st.session_state.blocks.append({"x": new_x, "y": 0})
 
-    # -------------------------------
-    # 키 입력
-    # -------------------------------
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_LEFT]:
-        player_x -= player_speed
-    if keys[pygame.K_RIGHT]:
-        player_x += player_speed
+# 블록 상승
+for block in st.session_state.blocks:
+    block["y"] += 1 + 0.1 * st.session_state.level
 
-    # -------------------------------
-    # 중력
-    # -------------------------------
-    y_velocity += gravity
-    player_y += y_velocity
+# -------------------------------
+# 해수면 상승
+# -------------------------------
+st.session_state.sea_level -= 0.05 * st.session_state.level
 
-    # -------------------------------
-    # 블록 충돌
-    # -------------------------------
-    on_block = False
-    player_rect = pygame.Rect(player_x, player_y, player_width, player_height)
-    for block in blocks:
-        if player_rect.colliderect(block) and y_velocity >= 0:
-            player_y = block.top - player_height
-            y_velocity = jump_power  # 자동 점프
-            on_block = True
-            score += 1
+# 게임 종료 체크
+if st.session_state.player_y > st.session_state.sea_level:
+    st.warning("💧 Game Over! 바닷물에 잠겼습니다.")
+    st.session_state.player_x = 50
+    st.session_state.player_y = 0
+    st.session_state.blocks = [{"x": 40, "y": 0}]
+    st.session_state.sea_level = 100
+    st.session_state.score = 0
+    st.session_state.level = 1
 
-    # -------------------------------
-    # 새로운 블록 생성
-    # -------------------------------
-    if blocks[-1].y < HEIGHT - 150:
-        new_block_x = random.randint(0, WIDTH - block_width)
-        new_block = pygame.Rect(new_block_x, HEIGHT, block_width, block_height)
-        blocks.append(new_block)
+# -------------------------------
+# 시각화
+# -------------------------------
+df_blocks = pd.DataFrame(st.session_state.blocks)
+fig = px.scatter(df_blocks, x="x", y="y", size_max=20, title="해수면 피하기", range_x=[0, WIDTH], range_y=[0, 120])
+# 캐릭터
+fig.add_scatter(x=[st.session_state.player_x], y=[st.session_state.player_y], mode="markers", marker=dict(size=15, color="green"), name="캐릭터")
+# 해수면
+fig.add_scatter(x=[0, WIDTH], y=[st.session_state.sea_level, st.session_state.sea_level], mode="lines", line=dict(color="blue", width=5), name="해수면")
 
-    # -------------------------------
-    # 블록 이동 (위로)
-    # -------------------------------
-    for block in blocks:
-        block.y -= block_speed
-    blocks = [b for b in blocks if b.y > -50]
+fig.update_layout(yaxis=dict(autorange="reversed"))
+col1.plotly_chart(fig, use_container_width=True)
 
-    # -------------------------------
-    # 해수면 상승
-    # -------------------------------
-    sea_level -= sea_rise_speed * 60  # 프레임 단위로 조금씩 상승
+# -------------------------------
+# 레벨 증가
+# -------------------------------
+if st.session_state.score >= st.session_state.level * 10:
+    st.session_state.level += 1
 
-    # -------------------------------
-    # 게임 종료
-    # -------------------------------
-    if player_y + player_height > sea_level:
-        print("Game Over! 바닷물에 잠겼습니다.")
-        running = False
-
-    # -------------------------------
-    # 레벨 상승
-    # -------------------------------
-    if score >= level * 10:
-        level += 1
-        block_speed += 0.5
-        sea_rise_speed += 0.005
-
-    # -------------------------------
-    # 화면 그리기
-    # -------------------------------
-    screen.fill(WHITE)
-
-    # 해수면
-    pygame.draw.rect(screen, BLUE, (0, sea_level, WIDTH, HEIGHT - sea_level))
-
-    # 블록
-    for block in blocks:
-        pygame.draw.rect(screen, LIGHTBLUE, block)
-
-    # 캐릭터
-    pygame.draw.rect(screen, GREEN, (player_x, player_y, player_width, player_height))
-
-    # 점수 / 레벨 표시
-    score_text = font.render(f"점수: {score}  레벨: {level}", True, BLACK)
-    screen.blit(score_text, (10, 10))
-
-    pygame.display.flip()
-
-pygame.quit()
-sys.exit()
+# 자동 새로고침
+st.experimental_rerun()
