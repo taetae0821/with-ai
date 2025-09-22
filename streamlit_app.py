@@ -5,13 +5,15 @@ import time
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="Sea Level Rising TOFU Game", layout="wide")
-st.title("🌊 Sea Level Rising - TOFU Game (Streamlit)")
+st.title("🌊 Sea Level Rising - TOFU Game")
 
 # -------------------------------
 # 게임 상태 초기화
 # -------------------------------
 if "player_x" not in st.session_state:
     st.session_state.player_x = 5
+if "player_y" not in st.session_state:
+    st.session_state.player_y = 0
 if "score" not in st.session_state:
     st.session_state.score = 0
 if "blocks" not in st.session_state:
@@ -24,9 +26,15 @@ if "level" not in st.session_state:
     st.session_state.level = 1
 if "running" not in st.session_state:
     st.session_state.running = False
+if "frame" not in st.session_state:
+    st.session_state.frame = 0
+if "y_velocity" not in st.session_state:
+    st.session_state.y_velocity = 0
 
 WIDTH = 10
-HEIGHT = 10
+HEIGHT = 15
+GRAVITY = -0.5
+JUMP_POWER = 2
 
 # -------------------------------
 # 게임 루프용 placeholder
@@ -43,37 +51,77 @@ with col1:
 with col3:
     if st.button("▶"):
         st.session_state.player_x = min(WIDTH-1, st.session_state.player_x + 1)
+with col2:
+    if st.button("점프"):
+        # 블록 위에 있으면 점프 가능
+        for b in st.session_state.blocks:
+            if b["x"] == st.session_state.player_x and b["y"] == st.session_state.player_y:
+                st.session_state.y_velocity = JUMP_POWER
 
 # -------------------------------
 # 게임 루프
 # -------------------------------
 def game_loop():
     while True:
+        st.session_state.frame += 1
+
+        # -------------------------------
         # 블록 생성
+        # -------------------------------
         BLOCK_PROB = min(0.1 + st.session_state.level*0.02, 0.5)
         if np.random.rand() < BLOCK_PROB:
-            st.session_state.blocks.append({"x": np.random.randint(0, WIDTH), "y": 0})
+            st.session_state.blocks.append({"x": np.random.randint(0, WIDTH), "y": HEIGHT-1})
 
-        # 블록 이동
+        # -------------------------------
+        # 블록 이동(아래로)
+        # -------------------------------
         for b in st.session_state.blocks:
-            b["y"] += 1
+            b["y"] -= 1
 
-        # 충돌 체크
-        for b in st.session_state.blocks[:]:
-            if b["y"] == HEIGHT-1 and b["x"] == st.session_state.player_x:
-                st.session_state.score += 1
-                st.session_state.blocks.remove(b)
-            elif b["y"] >= HEIGHT:
-                st.session_state.sea_level += 1
-                st.session_state.blocks.remove(b)
+        # -------------------------------
+        # 캐릭터 점프/중력
+        # -------------------------------
+        st.session_state.player_y += st.session_state.y_velocity
+        st.session_state.y_velocity += GRAVITY
 
+        # 바닥 충돌
+        if st.session_state.player_y < 0:
+            st.session_state.player_y = 0
+            st.session_state.y_velocity = 0
+
+        # 블록 위 충돌
+        for b in st.session_state.blocks:
+            if b["x"] == st.session_state.player_x and st.session_state.player_y <= b["y"] < st.session_state.player_y + 1 and st.session_state.y_velocity < 0:
+                st.session_state.player_y = b["y"]
+                st.session_state.y_velocity = 0
+                st.session_state.score += 1  # 블록 밟으면 점수
+
+        # -------------------------------
+        # 해수면 상승
+        # -------------------------------
+        st.session_state.sea_level += 0.01
+        if st.session_state.player_y < st.session_state.sea_level:
+            placeholder.empty()
+            st.error("💀 Game Over! 해수면에 잠겼습니다.")
+            st.session_state.player_x = 5
+            st.session_state.player_y = 0
+            st.session_state.score = 0
+            st.session_state.blocks = []
+            st.session_state.sea_level = 0
+            st.session_state.level = 1
+            st.session_state.speed = 0.3
+            st.session_state.y_velocity = 0
+            break
+
+        # -------------------------------
         # 레벨 증가
-        if st.session_state.score >= st.session_state.level * 5:
+        # -------------------------------
+        if st.session_state.score >= st.session_state.level * 10:
             st.session_state.level += 1
             st.session_state.speed = max(0.05, st.session_state.speed - 0.02)
 
         # -------------------------------
-        # Plotly로 화면 그리기
+        # Plotly 화면 그리기
         # -------------------------------
         fig = go.Figure()
 
@@ -85,7 +133,7 @@ def game_loop():
             opacity=0.5
         ))
 
-        # 블록(TOFU)
+        # 블록
         for b in st.session_state.blocks:
             fig.add_trace(go.Bar(
                 x=[b["x"]],
@@ -99,7 +147,7 @@ def game_loop():
             x=[st.session_state.player_x],
             y=[1],
             marker_color='green',
-            base=HEIGHT-1
+            base=st.session_state.player_y
         ))
 
         fig.update_layout(
@@ -107,23 +155,12 @@ def game_loop():
             xaxis=dict(range=[-0.5, WIDTH-0.5]),
             yaxis=dict(range=[0, HEIGHT]),
             showlegend=False,
-            height=500,
+            height=600,
             width=500,
         )
 
-        placeholder.plotly_chart(fig)
-        st.write(f"점수: {st.session_state.score} | 난이도 레벨: {st.session_state.level}")
-
-        # 게임 종료
-        if st.session_state.sea_level >= HEIGHT-1:
-            st.error("💀 Game Over! 해수면에 잠겼습니다.")
-            st.session_state.player_x = 5
-            st.session_state.score = 0
-            st.session_state.blocks = []
-            st.session_state.sea_level = 0
-            st.session_state.level = 1
-            st.session_state.speed = 0.3
-            break
+        placeholder.plotly_chart(fig, key=f"game_frame_{st.session_state.frame}")
+        st.write(f"점수: {st.session_state.score} | 레벨: {st.session_state.level} | 해수면: {st.session_state.sea_level:.2f}")
 
         time.sleep(st.session_state.speed)
 
